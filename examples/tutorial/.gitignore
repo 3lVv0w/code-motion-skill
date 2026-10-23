@@ -1,6 +1,7 @@
 node_modules/
 out/
 public/*.wav
+public/*.mp3
 # Third-party style files: copy them from the Style Atlas prompt, do not commit them
 prompts/
 src/lib/

@@ -22,11 +22,11 @@ export const Root = () => (
         <Composition
           id={id}
           component={VideoCanvas}
-          durationInFrames={Math.round(video.duration * FPS)}
-          fps={FPS}
+          durationInFrames={Math.round(video.duration * (video.fps ?? FPS))}
+          fps={video.fps ?? FPS}
           width={video.width ?? WIDTH}
           height={video.height ?? HEIGHT}
-          defaultProps={{ id, withAudio: true }}
+          defaultProps={{ id, withAudio: true, voiceAudio: video.voice }}
         />
         <Composition
           id={`${id}-audio`}
