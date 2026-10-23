@@ -1,0 +1,18 @@
+{
+  "name": "code-motion-tutorial",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "bun scripts/render.ts",
+    "stills": "bun scripts/stills.ts",
+    "setup-style": "bun scripts/setup-style.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.530",
+    "@remotion/cli": "4.0.530",
+    "@remotion/renderer": "4.0.530",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remotion": "4.0.530"
+  }
+}
