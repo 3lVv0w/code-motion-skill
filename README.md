@@ -56,7 +56,17 @@ Same code in, same video out: lose the MP4 and run `bun run render <id>` again.
 
 ## Install
 
-Copy the skill folder into your project. You only need `skills/code-motion/`.
+**With the [skills CLI](https://github.com/vercel-labs/skills)** (Node.js 22.20+), from your
+project:
+
+```bash
+npx skills add savepong/code-motion-skill
+```
+
+It asks which coding agents to install to (Claude Code, Codex, Cursor and many more). Add `-g` to
+install it for all your projects.
+
+**By hand:** copy the skill folder into your project. You only need `skills/code-motion/`.
 
 **Claude Code**
 
