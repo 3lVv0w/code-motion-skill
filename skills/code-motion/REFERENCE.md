@@ -10,17 +10,20 @@ current when written; use what the repo already pins if it has them.
   .gitignore
   scripts/render.ts          # bun run render <id>: WAV first, then MP4 (--audio: WAV only)
   scripts/stills.ts          # bun run stills <id> <t1> <t2>...: PNGs for storyboards and checks
+  scripts/voiceover.ts       # optional: bun run voiceover <id>: narration.json -> public/<id>-voice.mp3
   src/index.ts               # registerRoot
-  src/config.ts              # size, fps, fonts, logo
+  src/config.ts              # default size, fps, fonts, logo
   src/Root.tsx               # one video + one audio composition per id
   src/VideoCanvas.tsx        # draws visuals.js on a canvas each frame
   src/videos/index.ts        # imports every video's scripts
-  src/videos/<id>/visuals.js # window.VIDEOS[id] = { draw, duration }
+  src/videos/<id>/visuals.js # window.VIDEOS[id] = { draw, duration, width?, height?, fps?, voice? }
   src/videos/<id>/score.js   # window.VIDEOS[id].score = (k) => ...
+  src/videos/<id>/narration.json # optional: voiceover text per beat
   src/lib/                   # helper library + sound kit, copied from the style prompt
   prompts/<style>.md         # style prompt, verbatim
   public/fonts/              # self-hosted fonts + fonts.css
   public/logo.svg            # optional
+  public/<id>-voice.mp3      # optional voiceover audio (build output)
 ```
 
 ## package.json
@@ -32,12 +35,14 @@ current when written; use what the repo already pins if it has them.
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "bun scripts/render.ts",
-    "stills": "bun scripts/stills.ts"
+    "stills": "bun scripts/stills.ts",
+    "voiceover": "bun scripts/voiceover.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.530",
     "@remotion/cli": "4.0.530",
     "@remotion/renderer": "4.0.530",
+    "msedge-tts": "^2.1.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "remotion": "4.0.530"
@@ -69,8 +74,11 @@ current when written; use what the repo already pins if it has them.
 ```text
 out/
 public/*.wav
+public/*.mp3
 node_modules/
 ```
+
+`msedge-tts` and the `voiceover` script are only needed for narration; leave them out otherwise.
 
 ## src/index.ts
 
@@ -84,7 +92,7 @@ registerRoot(Root)
 ## src/config.ts
 
 ```ts
-export const FPS = 30
+export const FPS = 30 // default; a video can set its own fps (e.g. 60 for smooth motion)
 export const WIDTH = 1280
 export const HEIGHT = 720
 export const SAMPLE_RATE = 48000
@@ -110,7 +118,10 @@ type OfflineResult = { inter: Float32Array; peak: number; sr: number }
 
 declare global {
   interface Window {
-    VIDEOS: Record<string, { draw: Draw; duration: number; score: unknown; width?: number; height?: number }>
+    VIDEOS: Record<
+      string,
+      { draw: Draw; duration: number; score: unknown; width?: number; height?: number; fps?: number; voice?: string }
+    >
     SOUND: {
       renderOffline: (score: unknown, duration: number, sampleRate: number, opts: object) => Promise<OfflineResult>
     }
@@ -132,6 +143,7 @@ Adapt `SOUND.renderOffline` to the sound kit's real API if the style prompt name
     /* pure function of t */
   }
   window.VIDEOS = window.VIDEOS || {}
+  // width, height, fps and voice are optional; see "Several sizes", "Frame rate" and "Voiceover".
   window.VIDEOS["<id>"] = { ...window.VIDEOS["<id>"], draw, duration: 25 }
 })()
 
@@ -148,7 +160,7 @@ Adapt `SOUND.renderOffline` to the sound kit's real API if the style prompt name
 ```tsx
 import { useEffect, useRef, useState } from "react"
 import { AbsoluteFill, Audio, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig } from "remotion"
-import { FONT_SAMPLE, FONT_SPECS, FPS, LOGO } from "./config"
+import { FONT_SAMPLE, FONT_SPECS, LOGO } from "./config"
 import { VIDEOS } from "./videos"
 
 const FONT_CSS = staticFile("fonts/fonts.css")
@@ -169,9 +181,9 @@ const loadAssets = async () => {
   window.LOGO = logo
 }
 
-export const VideoCanvas = ({ id, withAudio }: { id: string; withAudio: boolean }) => {
+export const VideoCanvas = ({ id, withAudio, voiceAudio }: { id: string; withAudio: boolean; voiceAudio?: string }) => {
   const frame = useCurrentFrame()
-  const { width, height } = useVideoConfig()
+  const { width, height, fps } = useVideoConfig()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [handle] = useState(() => delayRender("Loading fonts and logo"))
   const [ready, setReady] = useState(false)
@@ -188,13 +200,14 @@ export const VideoCanvas = ({ id, withAudio }: { id: string; withAudio: boolean 
     if (!ready || !ctx) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, width, height)
-    VIDEOS[id]!.draw(ctx, width, height, frame / FPS)
-  }, [id, frame, ready, width, height])
+    VIDEOS[id]!.draw(ctx, width, height, frame / fps)
+  }, [id, frame, fps, ready, width, height])
 
   return (
     <AbsoluteFill>
       <canvas ref={canvasRef} width={width} height={height} />
       {withAudio ? <Audio src={staticFile(`${id}.wav`)} /> : null}
+      {voiceAudio ? <Audio src={staticFile(voiceAudio)} /> : null}
     </AbsoluteFill>
   )
 }
@@ -230,11 +243,11 @@ export const Root = () => (
         <Composition
           id={id}
           component={VideoCanvas}
-          durationInFrames={Math.round(video.duration * FPS)}
-          fps={FPS}
+          durationInFrames={Math.round(video.duration * (video.fps ?? FPS))}
+          fps={video.fps ?? FPS}
           width={video.width ?? WIDTH}
           height={video.height ?? HEIGHT}
-          defaultProps={{ id, withAudio: true }}
+          defaultProps={{ id, withAudio: true, voiceAudio: video.voice }}
         />
         <Composition
           id={`${id}-audio`}
@@ -270,6 +283,13 @@ drawing and score again under a new id with a portrait size:
 page: draw it at 2× on an offscreen canvas, then clip each panel and stack the panels top to bottom
 in reading order, splitting very wide panels in two. Redraw title and summary pages natively.
 Render with `bun run render <id>-vertical`.
+
+## Frame rate
+
+`config.ts` FPS (30) is the default. Set `fps: 60` in a video's registration for smoother motion;
+`draw` still gets `t` in seconds, so nothing else changes. 60 fps doubles render time and roughly
+doubles file size. Make film grain, flicker or other per-frame noise step on a fixed clock (for
+example `Math.floor(t * 24)`) so it looks the same at any frame rate.
 
 ## scripts/render.ts
 
@@ -370,3 +390,183 @@ Fetch the Google Fonts CSS with a browser User-Agent so it returns woff2, downlo
 the subsets you need into `public/fonts/`, and rewrite the `url(...)` entries to the local file
 names in `public/fonts/fonts.css`. Keep the font's licence (most Google Fonts are SIL OFL 1.1,
 which allows this).
+
+## Voiceover narration (optional)
+
+Spoken narration is generated once into `public/<id>-voice.mp3` and played over the score.
+Edge TTS (free, no key) is the default; if `ELEVENLABS_API_KEY` is set, ElevenLabs is used instead.
+Needs `ffmpeg` and `ffprobe` on the PATH.
+
+Generate **one clip per beat** and place each at its beat's start time. One long clip for the whole
+video drifts out of sync with the scenes, and if it is longer than the video the end is cut off.
+
+1. Write `src/videos/<id>/narration.json` with the approved transcript:
+
+   ```json
+   {
+     "voice": "en-GB-RyanNeural",
+     "rate": "+0%",
+     "gap": 0.4,
+     "duration": 90,
+     "beats": [
+       { "start": 0.6, "text": "First beat's narration." },
+       { "start": 9.4, "text": "Second beat's narration." }
+     ],
+     "elevenlabs": { "voice": "<voice-id>", "model": "eleven_multilingual_v2" }
+   }
+   ```
+
+   - `voice`: the Edge voice. Always name it explicitly (see the table below).
+   - `rate`: Edge speaking rate (`"+10%"`, `"-5%"`). Prefer shortening text over going above +15%.
+   - `gap`: seconds of silence required before the next beat starts.
+   - `start`: a little after the scene cut (about 0.4–0.6 s) so the picture lands first.
+   - `elevenlabs` (optional): used only when `ELEVENLABS_API_KEY` is set. `voice` is a voice ID
+     from your ElevenLabs library; `model` defaults to `eleven_multilingual_v2`.
+   - Budget: English Edge voices speak about 2.1–2.5 words per second at `+0%`, so a 10 s beat
+     holds about 20 words. Thai runs at roughly 4–5 syllables per second. Check with a test run.
+2. Run `bun run voiceover <id>`. It prints where each clip ends and exits with code 2 if any clip
+   runs into the next beat. Shorten that beat's text (or nudge `rate`) and run it again.
+3. Add `voice: "<id>-voice.mp3"` to the video's registration in `visuals.js`. Remotion mixes it
+   over `<id>.wav` in Studio and in the MP4. Keep the score quieter under speech.
+
+### Picking a voice
+
+Edge TTS voices that suit narration (from the `msedge-tts` voice list):
+
+| Style                          | Edge voice                                        |
+| ------------------------------ | ------------------------------------------------- |
+| Documentary, authoritative     | `en-US-ChristopherNeural` (M), `en-GB-RyanNeural` (M), `en-GB-SoniaNeural` (F) |
+| News, confident                | `en-US-GuyNeural` (M), `en-US-AriaNeural` (F), `en-US-MichelleNeural` (F) |
+| Warm, conversational product   | `en-US-AndrewNeural` (M), `en-US-AvaNeural` (F), `en-US-EmmaNeural` (F) |
+| Casual, social clip            | `en-US-BrianNeural` (M), `en-US-RogerNeural` (M, lively), `en-US-JennyNeural` (F) |
+| Thai                           | `th-TH-NiwatNeural` (M), `th-TH-PremwadeeNeural` (F) |
+
+ElevenLabs models for this offline, per-beat generation:
+
+| Model                    | Use it for                                                                 |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `eleven_multilingual_v2` | Default. Stable, natural long-form narration in its 29 languages. **No Thai.** |
+| `eleven_v3`              | Most expressive delivery, and needed for Thai and other languages v2 lacks. Check each clip: it varies more between runs. |
+| `eleven_flash_v2_5`      | Not needed here; its advantage is low latency for real-time use.           |
+
+### scripts/voiceover.ts
+
+```ts
+// bun run voiceover <id>: one TTS clip per beat, each placed at its beat start, mixed into
+// public/<id>-voice.mp3 trimmed to the video length. Narration can't drift or run past the end.
+//
+// Reads src/videos/<id>/narration.json:
+//   { voice, rate?, gap?, duration, beats: [{ start, text }], elevenlabs?: { voice, model? } }
+//
+// Uses Edge TTS (free, no key) with `voice` (an Edge voice name such as "th-TH-PremwadeeNeural").
+// If ELEVENLABS_API_KEY is set, uses ElevenLabs instead with `elevenlabs.voice` (a voice ID) and
+// `elevenlabs.model` (default eleven_multilingual_v2; use eleven_v3 for Thai and other languages
+// multilingual_v2 does not cover). Flags override the file: --engine edge|elevenlabs, --voice, --model.
+import { execFileSync } from "node:child_process"
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts"
+
+const args = process.argv.slice(2)
+const id = args[0]
+if (!id || id.startsWith("-")) {
+  console.log("Usage: bun run voiceover <id> [--engine edge|elevenlabs] [--voice <name or id>] [--model <elevenlabs model>]")
+  process.exit(1)
+}
+const getArg = (flag: string) => {
+  const i = args.indexOf(flag)
+  return i !== -1 ? args[i + 1] : undefined
+}
+
+const root = join(import.meta.dir, "..")
+const specPath = join(root, `src/videos/${id}/narration.json`)
+if (!existsSync(specPath)) throw new Error(`Missing ${specPath}`)
+const spec = JSON.parse(readFileSync(specPath, "utf8")) as {
+  voice?: string // Edge TTS voice name
+  rate?: string // Edge TTS speaking rate, e.g. "+10%"
+  gap?: number // seconds a clip must end before the next clip starts (default 0.4)
+  duration: number
+  beats: { start: number; text: string }[]
+  elevenlabs?: { voice?: string; model?: string }
+}
+const gap = spec.gap ?? 0.4
+
+const engine = getArg("--engine") ?? (process.env.ELEVENLABS_API_KEY ? "elevenlabs" : "edge")
+if (engine === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) throw new Error("ELEVENLABS_API_KEY is not set")
+const voice =
+  getArg("--voice") ??
+  (engine === "elevenlabs" ? spec.elevenlabs?.voice ?? "21m00Tcm4TlvDq8ikWAM" : spec.voice ?? "en-US-AriaNeural")
+const model = getArg("--model") ?? spec.elevenlabs?.model ?? "eleven_multilingual_v2"
+const workDir = join(root, `out/voice-${id}`)
+mkdirSync(workDir, { recursive: true })
+mkdirSync(join(root, "public"), { recursive: true })
+
+const probe = (file: string) =>
+  Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]).toString().trim())
+
+async function edgeClip(text: string, out: string) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const tts = new MsEdgeTTS()
+      await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3)
+      const { audioStream } = tts.toStream(text, spec.rate ? { rate: spec.rate } : undefined)
+      const file = createWriteStream(out)
+      await new Promise<void>((resolve, reject) => {
+        audioStream.pipe(file)
+        file.on("finish", () => resolve())
+        file.on("error", reject)
+        audioStream.on("error", reject)
+      })
+      tts.close?.()
+      if (probe(out) > 0.5) return
+      throw new Error("empty clip")
+    } catch (err) {
+      if (attempt === 4) throw err
+      await new Promise((r) => setTimeout(r, 1500))
+    }
+  }
+}
+
+async function elevenClip(text: string, out: string) {
+  // eleven_v3 only accepts stability 0, 0.5 or 1.
+  const voice_settings = model === "eleven_v3" ? { stability: 0.5 } : { stability: 0.55, similarity_boost: 0.8 }
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+    method: "POST",
+    headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY!, "Content-Type": "application/json", Accept: "audio/mpeg" },
+    body: JSON.stringify({ text, model_id: model, voice_settings }),
+  })
+  if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`)
+  writeFileSync(out, Buffer.from(await res.arrayBuffer()))
+}
+
+console.log(`[voiceover] ${id}: ${spec.beats.length} beats, engine=${engine}, voice=${voice}${engine === "elevenlabs" ? `, model=${model}` : ""}`)
+const clips: { file: string; start: number }[] = []
+let overruns = 0
+for (const [i, beat] of spec.beats.entries()) {
+  const file = join(workDir, `beat-${String(i + 1).padStart(2, "0")}.mp3`)
+  if (engine === "elevenlabs") await elevenClip(beat.text, file)
+  else await edgeClip(beat.text, file)
+  const len = probe(file)
+  const slotEnd = (spec.beats[i + 1]?.start ?? spec.duration) - gap
+  const slot = slotEnd - beat.start
+  const flag = len > slot ? "  OVERRUNS SLOT" : ""
+  if (len > slot) overruns++
+  console.log(`  beat ${i + 1}: ${beat.start.toFixed(1)}s -> ends ${(beat.start + len).toFixed(2)}s (clip ${len.toFixed(2)}s / slot ${slot.toFixed(2)}s)${flag}`)
+  clips.push({ file, start: beat.start })
+}
+
+// Place every clip at its start time, mix (no level normalisation), and trim to the video length.
+const inputs = clips.flatMap((c) => ["-i", c.file])
+const delays = clips.map((c, i) => `[${i}:a]adelay=${Math.round(c.start * 1000)}:all=1[a${i}]`).join(";")
+const mix = `${clips.map((_, i) => `[a${i}]`).join("")}amix=inputs=${clips.length}:normalize=0,apad,atrim=0:${spec.duration}[out]`
+const output = join(root, `public/${id}-voice.mp3`)
+execFileSync("ffmpeg", ["-y", "-v", "error", ...inputs, "-filter_complex", `${delays};${mix}`, "-map", "[out]", "-ar", "48000", "-b:a", "128k", output])
+console.log(`Wrote ${output} (${probe(output).toFixed(2)}s)`)
+if (overruns) {
+  console.error(`${overruns} clip(s) run longer than their slot. Shorten that text or move the next beat's start.`)
+  process.exit(2)
+}
+process.exit(0)
+```
+
+Bun may print an "unexpected-response" warning from the Edge connection; the retry loop handles it.

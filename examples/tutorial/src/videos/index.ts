@@ -11,7 +11,10 @@ type OfflineResult = { inter: Float32Array; peak: number; sr: number }
 
 declare global {
   interface Window {
-    VIDEOS: Record<string, { draw: Draw; duration: number; score: unknown; width?: number; height?: number }>
+    VIDEOS: Record<
+      string,
+      { draw: Draw; duration: number; score: unknown; width?: number; height?: number; fps?: number; voice?: string }
+    >
     SOUND: {
       renderOffline: (score: unknown, duration: number, sampleRate: number, opts: object) => Promise<OfflineResult>
     }

@@ -1,5 +1,7 @@
 # code-motion
 
+[English](README.md) | [ไทย](README.th.md)
+
 [![MIT](https://img.shields.io/badge/license-MIT-black)](LICENSE)
 
 An agent skill for making product videos as code: canvas visuals and Web Audio sound, rendered to
@@ -18,14 +20,14 @@ Cursor, OpenCode and others. The skill is plain Markdown plus Bun commands.
 
 ```mermaid
 flowchart TD
-  brief["Brief<br/>topic, length, brand"] --> stylePrompt["Style prompt<br/>from AI Style Atlas"]
+  brief["Brief<br/>topic, length, brand, voice"] --> stylePrompt["Style prompt<br/>from AI Style Atlas"]
   stylePrompt --> facts["Facts<br/>from your codebase"]
-  facts --> board["Storyboard<br/>one panel per beat"]
+  facts --> board["Storyboard<br/>one panel per beat<br/>+ narration per beat"]
   board --> ok{"You approve?"}
   ok -- "changes" --> board
-  ok -- "yes" --> build["Agent writes<br/>visuals.js + score.js"]
+  ok -- "yes" --> build["Agent writes<br/>visuals.js + score.js<br/>(+ narration.json)"]
   build --> studio["Remotion Studio<br/>scrub every frame"]
-  studio --> check["Checklist on stills<br/>overflow, cover, fonts"]
+  studio --> check["Checklist on stills<br/>overflow, cover, fonts, voice fit"]
   check --> render["bun run render &lt;id&gt;"]
   render --> pr["Commit + PR<br/>attach the MP4"]
 ```
@@ -38,6 +40,7 @@ flowchart LR
     visuals["visuals.js<br/>draw(ctx, W, H, t)"]
     score["score.js<br/>sound events"]
     assets["fonts + logo"]
+    narration["narration.json<br/>optional, text per beat"]
   end
   subgraph browser["Headless Chrome"]
     canvas["Canvas<br/>frame at t = frame / fps"]
@@ -47,12 +50,23 @@ flowchart LR
   assets --> canvas
   score --> webaudio
   webaudio --> wav[("public/&lt;id&gt;.wav")]
+  narration --> tts["Edge TTS or ElevenLabs<br/>one clip per beat"]
+  tts --> voice[("public/&lt;id&gt;-voice.mp3")]
   canvas --> remotion["Remotion"]
   wav --> remotion
+  voice --> remotion
   remotion --> mp4[("out/&lt;id&gt;.mp4")]
 ```
 
 Same code in, same video out: lose the MP4 and run `bun run render <id>` again.
+
+### Voiceover (optional)
+
+Narration is written per beat in `narration.json`, so each line starts with its scene and can't
+drift. `bun run voiceover <id>` uses free Edge TTS neural voices, or ElevenLabs when
+`ELEVENLABS_API_KEY` is set, and refuses to finish if a line runs into the next scene. Each
+video can also set its own frame rate (30 by default, 60 for smoother motion). Ready-made prompts
+are in [prompts/voiceover-video-prompts.md](prompts/voiceover-video-prompts.md).
 
 ## Install
 
@@ -95,7 +109,7 @@ To make or re-render a product video, read and follow `.agents/skills/code-motio
 Install the skill in your own project, then follow what the agent asks. That is the whole process:
 
 1. Pick a style on the Style Atlas and save its prompt to `prompts/<style>.md` when asked.
-2. Approve the storyboard.
+2. Approve the storyboard (and the narration, if you asked for a voiceover).
 3. Watch it in Remotion Studio (`bun run studio`, http://localhost:3000) and ask for changes.
 4. The agent runs `bun run render <id>`. The MP4 is in `out/<id>.mp4`.
 
@@ -103,19 +117,24 @@ Install the skill in your own project, then follow what the agent asks. That is 
 
 | Path                       | What                                                                      |
 | -------------------------- | ------------------------------------------------------------------------- |
-| `skills/code-motion/`      | The skill: `SKILL.md` (workflows, checklist) and `REFERENCE.md` (the Remotion shell) |
+| `skills/code-motion/`      | The skill: `SKILL.md` (workflows, checklist) and `REFERENCE.md` (the Remotion shell, voiceover script) |
 | `examples/tutorial/`       | The 34-second Thai tutorial video about this skill, made with this skill  |
+| `prompts/claude-desktop-prompt.md` | Instructions to use the same workflow in Claude Desktop / Claude Projects |
+| `prompts/voiceover-video-prompts.md` | Copy-paste prompts for narrated videos (storyboard, voice, duration, format, FPS) and which models fit |
 
 ### Example: the tutorial video
 
 A Manga Page style tutorial, in 16:9 and 9:16, built by following the skill end to end. It shows
-the whole shape of a real project: `visuals.js`, `score.js`, a vertical cut, self-hosted fonts and
-the render scripts. See [examples/tutorial/README.md](examples/tutorial/README.md) to render it.
+the whole shape of a real project: `visuals.js`, `score.js`, a vertical cut, self-hosted fonts,
+the render scripts and the voiceover script. See [examples/tutorial/README.md](examples/tutorial/README.md) to render it.
 
 ## Requirements
 
 Bun, and internet on the first render (Remotion downloads a headless Chrome). Tested with Remotion
 4.0.530 and React 19.2.7.
+
+For voiceover: `ffmpeg` and `ffprobe` on the PATH, and internet while generating it. ElevenLabs
+needs `ELEVENLABS_API_KEY`; Edge TTS needs no key.
 
 ## Contributing
 
