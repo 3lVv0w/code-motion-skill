@@ -1,6 +1,37 @@
-.DS_Store
+# Dependencies & System
 node_modules/
+.DS_Store
+*.tmp
+*.log
 
+# Sensitive Credentials
+.env
+*.env
+.env.*
+*.token.json
+.youtube-token.json
+client_secrets.json
 
-#Ignore vscode AI rules
+# Generated Media Assets (never commit rendered video, audio, or frames)
+out/
+*.mp4
+*.wav
+*.mp3
+*.webm
+*.mov
+*.png.temp
+.remotion/
+
+# Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# Third-party Style Atlas prompts: keep local, do not commit
+prompts/blueprint.md
+prompts/product-launch.md
+
+# Personal video projects (keep local, do not commit)
+projects/*
+!projects/README.md
+
+# Technical implementation docs (keep local, do not commit)
+tech-docs/

@@ -1,6 +1,6 @@
 ---
 name: code-motion
-description: Make, edit or re-render product videos as code — canvas visuals and Web Audio sound, rendered to MP4 with Remotion, styled from an AI Style Atlas prompt. Use when the user asks for a trailer, explainer, promo or social clip of their product, wants to change one, or wants a lost MP4 rendered again.
+description: Make, edit or re-render product videos and animated explainers as code — canvas visuals and Web Audio sound, rendered to MP4 with Remotion, styled from an AI Style Atlas prompt. Use when the user asks for a trailer, explainer, promo, documentary loop or social clip of their product, wants to change one, or wants a lost MP4 rendered again.
 ---
 
 # Code motion
@@ -25,13 +25,13 @@ output: never commit them, re-render instead.
 ## Set up
 
 Only if there is no video app yet. Ask where it should live (default `apps/video` in a monorepo,
-`video/` otherwise), then ask before installing packages. Create the shell from
+`video/` or `examples/tutorial` otherwise), then ask before installing packages. Create the shell from
 [REFERENCE.md](REFERENCE.md).
 
 ## New video
 
-1. **Brief.** Get topic and audience, language, length (default 20–30 s), aspect ratio (16:9,
-   9:16 or both; see REFERENCE.md), frame rate (30 by default, 60 for smoother motion), brand
+1. **Brief.** Get topic and audience, language, length (default 20–30 s; up to 120 s for documentaries or loops), aspect ratio (16:9,
+   9:16 or both; see REFERENCE.md), frame rate (60 by default for smooth motion), brand
    assets (logo file if any, fonts, colours), and whether they want voiceover narration (free
    Edge TTS by default, ElevenLabs if `ELEVENLABS_API_KEY` is set) on top of the synthesized
    sound, and if so the voice style (gender, accent, tone). Pick the voice and ElevenLabs model
@@ -39,10 +39,10 @@ Only if there is no video app yet. Ask where it should live (default `apps/video
 2. **Style prompt.** Ask the user to pick a style on
    https://www.futurepedia.io/resources/ai-style-atlas/view, copy its prompt, and save it as
    `prompts/<style>.md`. Read all of it: its reference code, helper library and sound kit are the
-   style guide. Copy the helper library and sound kit into `src/lib/` unchanged.
-3. **Facts.** Take features and wording from the codebase and its docs, not from memory. Any number
+   style guide. Copy the helper library and sound kit into `src/lib/` or `src/style/`.
+3. **Facts.** Take features and wording from the codebase, docs, or research, not from memory. Any number
    you invent is listed as illustrative in the storyboard and the README.
-4. **Storyboard first.** Write an HTML page outside the repo with one canvas panel per beat (6–10),
+4. **Storyboard first.** Write an HTML page with one canvas panel per beat (6–10),
    drawn with the style's own functions. Under each: time range, exact on-screen text, transition,
    key sounds, and the narration for that beat if there is a voiceover. Keep each beat's narration
    inside its time range (about 2.2 English words per second) and name the exact voice. Show it
@@ -53,9 +53,8 @@ Only if there is no video app yet. Ask where it should live (default `apps/video
    (see REFERENCE.md); fix any beat it reports as overrunning before you go on.
 6. **Preview.** Run `bun run render <id> --audio`, then `bun run studio`, and tell the user they can
    scrub it at http://localhost:3000. Run the checklist below.
-7. **Render** with `bun run render <id>`.
-8. **Ship.** Commit on a branch. Push or open a PR only when asked. Suggest attaching the MP4 to
-   the PR.
+7. **Render** with `bun run render <id>`. Output is in `out/<id>.mp4`.
+8. **Ship.** Commit on a branch. Push or open a PR only when asked.
 
 ## Edit a video
 
@@ -97,4 +96,4 @@ Render stills with `bun run stills <id> 0 <one time per beat> <last>` and look a
   fonts lack the video's script (Thai, Japanese…), add a matching font for that script only; see
   REFERENCE.md.
 - Keep `prompts/` verbatim: add it to `.prettierignore`.
-- Ask before installing packages. Never commit `out/`, `public/*.wav` or `public/*.mp3`.
+- Ask before installing packages. Never commit `out/`, `public/*.wav`, `public/*.mp3`, or `.env`.

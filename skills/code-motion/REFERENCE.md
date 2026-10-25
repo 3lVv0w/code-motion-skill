@@ -16,14 +16,15 @@ current when written; use what the repo already pins if it has them.
   src/Root.tsx               # one video + one audio composition per id
   src/VideoCanvas.tsx        # draws visuals.js on a canvas each frame
   src/videos/index.ts        # imports every video's scripts
-  src/videos/<id>/visuals.js # window.VIDEOS[id] = { draw, duration, width?, height?, fps?, voice? }
-  src/videos/<id>/score.js   # window.VIDEOS[id].score = (k) => ...
-  src/videos/<id>/narration.json # optional: voiceover text per beat
+  src/videos/<id>/           # video scripts (visuals.js, score.js, narration.json)
   src/lib/                   # helper library + sound kit, copied from the style prompt
+  src/style/                 # style projection engines (voxel.js, manga.js, blueprint.js)
   prompts/<style>.md         # style prompt, verbatim
   public/fonts/              # self-hosted fonts + fonts.css
   public/logo.svg            # optional
-  public/<id>-voice.mp3      # optional voiceover audio (build output)
+  public/<id>-voice.mp3      # optional voiceover audio (build output, gitignored)
+  public/<id>.wav            # synthesized audio score (build output, gitignored)
+  out/<id>.mp4               # rendered MP4 video (build output, gitignored)
 ```
 
 ## package.json
@@ -72,13 +73,19 @@ current when written; use what the repo already pins if it has them.
 ## .gitignore
 
 ```text
-out/
-public/*.wav
-public/*.mp3
 node_modules/
+out/
+*.mp4
+*.wav
+*.mp3
+*.webm
+*.mov
+.remotion/
+.env*
 ```
 
-`msedge-tts` and the `voiceover` script are only needed for narration; leave them out otherwise.
+`msedge-tts` and ElevenLabs support in the `voiceover` script are only needed for narration; leave them out otherwise. All generated media outputs (`out/`, `public/*.wav`, `public/*.mp3`) are build artifacts and excluded from git.
+
 
 ## src/index.ts
 
@@ -92,7 +99,7 @@ registerRoot(Root)
 ## src/config.ts
 
 ```ts
-export const FPS = 30 // default; a video can set its own fps (e.g. 60 for smooth motion)
+export const FPS = 60 // default (60 fps for smooth, high-fidelity motion)
 export const WIDTH = 1280
 export const HEIGHT = 720
 export const SAMPLE_RATE = 48000
@@ -120,12 +127,23 @@ declare global {
   interface Window {
     VIDEOS: Record<
       string,
-      { draw: Draw; duration: number; score: unknown; width?: number; height?: number; fps?: number; voice?: string }
+      {
+        draw: Draw
+        duration: number
+        score?: unknown
+        width?: number
+        height?: number
+        fps?: number
+        voice?: string
+        music?: string
+        images?: string[]
+      }
     >
     SOUND: {
       renderOffline: (score: unknown, duration: number, sampleRate: number, opts: object) => Promise<OfflineResult>
     }
     LOGO: HTMLImageElement | null
+    LOADED_IMAGES: Record<string, HTMLImageElement>
   }
 }
 
@@ -286,10 +304,11 @@ Render with `bun run render <id>-vertical`.
 
 ## Frame rate
 
-`config.ts` FPS (30) is the default. Set `fps: 60` in a video's registration for smoother motion;
-`draw` still gets `t` in seconds, so nothing else changes. 60 fps doubles render time and roughly
-doubles file size. Make film grain, flicker or other per-frame noise step on a fixed clock (for
-example `Math.floor(t * 24)`) so it looks the same at any frame rate.
+`config.ts` FPS (60) is the default, providing smooth motion across all videos.
+`draw` still gets `t` in seconds, so nothing else changes. A video can override `fps: 30` in its
+registration for smaller file sizes or faster rendering. Make film grain, flicker or other per-frame
+noise step on a fixed clock (for example `Math.floor(t * 24)`) so it looks the same at any frame rate.
+
 
 ## scripts/render.ts
 
@@ -495,7 +514,7 @@ const engine = getArg("--engine") ?? (process.env.ELEVENLABS_API_KEY ? "elevenla
 if (engine === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) throw new Error("ELEVENLABS_API_KEY is not set")
 const voice =
   getArg("--voice") ??
-  (engine === "elevenlabs" ? spec.elevenlabs?.voice ?? "21m00Tcm4TlvDq8ikWAM" : spec.voice ?? "en-US-AriaNeural")
+  (engine === "elevenlabs" ? spec.elevenlabs?.voice ?? "JBFqnCBsd6RMkjVDRZzb" : spec.voice ?? "en-US-AriaNeural")
 const model = getArg("--model") ?? spec.elevenlabs?.model ?? "eleven_multilingual_v2"
 const workDir = join(root, `out/voice-${id}`)
 mkdirSync(workDir, { recursive: true })
