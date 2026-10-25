@@ -1,0 +1,26 @@
+{
+  "voice": "en-US-GuyNeural",
+  "duration": 34.0,
+  "elevenlabs": {
+    "voice": "JBFqnCBsd6RMkjVDRZzb",
+    "model": "eleven_multilingual_v2"
+  },
+  "beats": [
+    {
+      "start": 0.5,
+      "text": "Welcome to Code Motion."
+    },
+    {
+      "start": 6.8,
+      "text": "Turn your design specs into frame accurate videos."
+    },
+    {
+      "start": 15.2,
+      "text": "Preview your compositions in Remotion Studio."
+    },
+    {
+      "start": 23.5,
+      "text": "Render high quality MP4 videos with code."
+    }
+  ]
+}

@@ -1,85 +1,76 @@
-# Example: code-motion tutorial
+# Example Video Compositions
 
 [English](README.md) | [ไทย](README.th.md)
 
-The 34-second Thai tutorial about the `/code-motion` skill, made with the skill itself in the
-[Manga Page](https://www.futurepedia.io/resources/ai-style-atlas/view) style. Two cuts:
+This directory contains full Remotion video compositions built using the `/code-motion` agent skill:
 
-| Composition id      | Size      | Output                       |
-| ------------------- | --------- | ---------------------------- |
-| `tutorial`          | 1280×720  | `out/tutorial.mp4`           |
-| `tutorial-vertical` | 1080×1920 | `out/tutorial-vertical.mp4`  |
+| ID | Title / Style | Resolution | Duration | Audio / Narration |
+|---|---|---|---|---|
+| `tutorial` | **Code Motion Skill Tutorial** (Manga Page) | 1280×720 (16:9) | 34.0s | Synthesized SFX + Optional Voiceover |
+| `tutorial-vertical` | **Code Motion Skill Tutorial** (Vertical) | 1080×1920 (9:16) | 34.0s | Synthesized SFX + Optional Voiceover |
+| `launch` | **Product Launch Reveal** (Popular Looks) | 1920×1080 (16:9) | 25.0s | Synthesized SFX + Voiceover |
+| `launch-vertical` | **Product Launch Reveal** (Vertical) | 1080×1920 (9:16) | 25.0s | Synthesized SFX + Voiceover |
 
-## Render it
+---
 
-The Manga Page style files belong to Futurepedia, so they are not in this repo. Get them from the
-prompt first:
+## Quick Start: Rendering Videos
 
-1. Open the [AI Style Atlas](https://www.futurepedia.io/resources/ai-style-atlas/view), pick
-   **Manga Page**, copy its prompt and save it as `prompts/manga-page.md`.
-2. Install and extract the style files:
+### 1. Install Dependencies
+```bash
+bun install
+```
 
-   ```bash
-   bun install
-   bun run setup-style prompts/manga-page.md   # writes src/lib/harness.js, src/lib/sound.js, src/style/manga.js
-   ```
+### 2. Generate Voiceover (Optional)
+For videos using narration (such as `launch` or `tutorial`):
+```bash
+bun run voiceover launch
 
-3. Preview or render:
+# With ElevenLabs (if ELEVENLABS_API_KEY is set in .env)
+bun run voiceover launch --engine elevenlabs
+```
 
-   ```bash
-   bun run render tutorial --audio   # sound for the Studio
-   bun run studio                    # http://localhost:3000
-   bun run render tutorial           # out/tutorial.mp4
-   bun run render tutorial-vertical  # out/tutorial-vertical.mp4
-   ```
+### 3. Preview in Remotion Studio
+Scrub every frame and listen to audio in real time:
+```bash
+# Render synthesized audio score first
+bun run render tutorial --audio
 
-`prompts/`, `src/lib/` and `src/style/` are gitignored so the style files are never committed.
+# Launch Remotion Studio at http://localhost:3000
+bun run studio
+```
 
-## How it is built
+### 4. Render Final Video (MP4)
+```bash
+# Render canonical tutorial
+bun run render tutorial                      # Output: out/tutorial.mp4
+bun run render tutorial-vertical             # Output: out/tutorial-vertical.mp4
 
-| Path                                 | What                                                                 |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `src/videos/tutorial/visuals.js`     | Five manga pages, page turns, and the 9:16 panel stacking            |
-| `src/videos/tutorial/score.js`       | Every sound, at the same times as the pictures                       |
-| `src/videos/tutorial/vertical.js`    | Registers `tutorial-vertical` with a 1080×1920 canvas                |
-| `scripts/render.ts`                  | WAV then MP4; `--audio` writes the WAV only                          |
-| `scripts/stills.ts`                  | PNGs at given times, for storyboards and checks                      |
-| `scripts/voiceover.ts`               | Per-beat narration from `narration.json` to `public/<id>-voice.mp3`  |
-| `scripts/setup-style.ts`             | Pulls the third-party style files out of the prompt                  |
-| `public/fonts/`                      | Self-hosted fonts and their OFL licences                             |
+# Render product launch trailer
+bun run render launch                        # Output: out/launch.mp4
+bun run render launch-vertical               # Output: out/launch-vertical.mp4
+```
 
-The style's fonts have no Thai, so Thai text uses Mali (hand lettering) and Kanit (heavy display).
+### 5. Check Test Stills
+```bash
+bun run stills tutorial 0 5 12 20 28 34
+bun run stills launch 0 4.9 11.3 17.8 25.6 31.8
+```
 
-## Voiceover (optional)
 
-The tutorial itself has no narration, but the shell supports it. To add a voice track to a video:
+---
 
-1. Write `src/videos/<id>/narration.json`, one entry per beat, each starting just after its scene:
+## Git Policy: Generated Assets vs. Core Code
 
-   ```json
-   {
-     "voice": "th-TH-PremwadeeNeural",
-     "duration": 34,
-     "beats": [
-       { "start": 0.5, "text": "..." },
-       { "start": 7.5, "text": "..." }
-     ],
-     "elevenlabs": { "voice": "<voice-id>", "model": "eleven_v3" }
-   }
-   ```
+- **Never committed to git (ignored by `.gitignore`):**
+  - `out/` and `*.mp4` (video renders)
+  - `public/*.wav` and `*.wav` (synthesized audio)
+  - `public/*.mp3` and `*.mp3` (voiceover and music tracks)
+  - `.env` (API keys)
+  - `.remotion/` (bundler cache)
+- **Always committed (Core code):**
+  - `src/lib/` (`harness.js`, `sound.js`)
+  - `src/style/` (`voxel.js`, `manga.js`, `blueprint.js`)
+  - `src/videos/` (canonical repo examples: `tutorial/`, `launch/`)
+  - `scripts/` (`render.ts`, `voiceover.ts`, `stills.ts`)
+  - `public/fonts/` (OFL fonts)
 
-2. Generate it. Edge TTS is free and needs no key; with `ELEVENLABS_API_KEY` set, ElevenLabs is
-   used instead (`eleven_v3` for Thai, since `eleven_multilingual_v2` has no Thai). Needs `ffmpeg`.
-
-   ```bash
-   bun run voiceover <id>
-   ELEVENLABS_API_KEY=your_key bun run voiceover <id>
-   ```
-
-   It stops with an error if a beat's narration runs into the next beat.
-
-3. Add `voice: "<id>-voice.mp3"` to the video's registration in `visuals.js`, then render.
-
-A video can also set `fps: 60` in its registration for smoother motion (default 30). Prompts to
-ask an agent for a narrated video are in
-[prompts/voiceover-video-prompts.md](../../prompts/voiceover-video-prompts.md).

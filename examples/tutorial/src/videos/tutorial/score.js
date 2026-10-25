@@ -4,7 +4,7 @@
   window.VIDEOS.tutorial.score = (k0) => {
     // start every sound a quarter sample past the 48 kHz grid (Chrome spikes sources that land exactly on it)
     const sn = (t) => (Math.round(t * 48000) + 0.25) / 48000
-    let k = { ...k0, play: (n, t, o) => k0.play(n, sn(t), o), tone: (t, o) => k0.tone(sn(t), o), noise: (t, o) => k0.noise(sn(t), o) }
+    let k = { ...k0, play: (n, t, o) => k0.play(n, sn(t), o), tone: (t, o) => k0.tone(sn(t), o), noise: (t, o) => k0.noise(sn(t), o), hz: (n) => k0.hz(n) }
     const D = window.VIDEOS.tutorial.duration
     const on = (t0) => (Math.floor(t0 * 12 + 1e-6) + 1) / 12
     const pan = (x) => Math.max(-1, Math.min(1, x / 640 - 1)) * 0.6

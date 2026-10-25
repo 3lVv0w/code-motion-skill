@@ -9,7 +9,7 @@
 // `elevenlabs.model` (default eleven_multilingual_v2; use eleven_v3 for Thai and other languages
 // multilingual_v2 does not cover). Flags override the file: --engine edge|elevenlabs, --voice, --model.
 import { execFileSync } from "node:child_process"
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { createWriteStream, existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts"
 
@@ -25,8 +25,10 @@ const getArg = (flag: string) => {
 }
 
 const root = join(import.meta.dir, "..")
-const specPath = join(root, `src/videos/${id}/narration.json`)
-if (!existsSync(specPath)) throw new Error(`Missing ${specPath}`)
+const candidatePath1 = join(root, `src/videos/${id}/narration.json`)
+const candidatePath2 = join(root, `../../projects/${id}/narration.json`)
+const specPath = existsSync(candidatePath1) ? candidatePath1 : candidatePath2
+if (!existsSync(specPath)) throw new Error(`Missing narration.json (checked ${candidatePath1} and ${candidatePath2})`)
 const spec = JSON.parse(readFileSync(specPath, "utf8")) as {
   voice?: string // Edge TTS voice name
   rate?: string // Edge TTS speaking rate, e.g. "+10%"
@@ -41,11 +43,13 @@ const engine = getArg("--engine") ?? (process.env.ELEVENLABS_API_KEY ? "elevenla
 if (engine === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) throw new Error("ELEVENLABS_API_KEY is not set")
 const voice =
   getArg("--voice") ??
-  (engine === "elevenlabs" ? spec.elevenlabs?.voice ?? "21m00Tcm4TlvDq8ikWAM" : spec.voice ?? "en-US-AriaNeural")
+  (engine === "elevenlabs" ? spec.elevenlabs?.voice ?? "JBFqnCBsd6RMkjVDRZzb" : spec.voice ?? "en-US-AriaNeural")
 const model = getArg("--model") ?? spec.elevenlabs?.model ?? "eleven_multilingual_v2"
-const workDir = join(root, `out/voice-${id}`)
+const projectDir = join(root, "../../projects", id)
+const workDir = existsSync(projectDir) ? join(projectDir, "out", `voice-${id}`) : join(root, `out/voice-${id}`)
 mkdirSync(workDir, { recursive: true })
 mkdirSync(join(root, "public"), { recursive: true })
+
 
 const probe = (file: string) =>
   Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]).toString().trim())
@@ -88,10 +92,13 @@ async function elevenClip(text: string, out: string) {
 console.log(`[voiceover] ${id}: ${spec.beats.length} beats, engine=${engine}, voice=${voice}${engine === "elevenlabs" ? `, model=${model}` : ""}`)
 const clips: { file: string; start: number }[] = []
 let overruns = 0
+const force = args.includes("--force")
 for (const [i, beat] of spec.beats.entries()) {
   const file = join(workDir, `beat-${String(i + 1).padStart(2, "0")}.mp3`)
-  if (engine === "elevenlabs") await elevenClip(beat.text, file)
-  else await edgeClip(beat.text, file)
+  if (force || !existsSync(file) || probe(file) <= 0) {
+    if (engine === "elevenlabs") await elevenClip(beat.text, file)
+    else await edgeClip(beat.text, file)
+  }
   const len = probe(file)
   const slotEnd = (spec.beats[i + 1]?.start ?? spec.duration) - gap
   const slot = slotEnd - beat.start
@@ -105,9 +112,15 @@ for (const [i, beat] of spec.beats.entries()) {
 const inputs = clips.flatMap((c) => ["-i", c.file])
 const delays = clips.map((c, i) => `[${i}:a]adelay=${Math.round(c.start * 1000)}:all=1[a${i}]`).join(";")
 const mix = `${clips.map((_, i) => `[a${i}]`).join("")}amix=inputs=${clips.length}:normalize=0,apad,atrim=0:${spec.duration}[out]`
-const output = join(root, `public/${id}-voice.mp3`)
-execFileSync("ffmpeg", ["-y", "-v", "error", ...inputs, "-filter_complex", `${delays};${mix}`, "-map", "[out]", "-ar", "48000", "-b:a", "128k", output])
-console.log(`Wrote ${output} (${probe(output).toFixed(2)}s)`)
+const targetVoice = existsSync(projectDir) ? join(projectDir, `${id}-voice.mp3`) : join(root, `public/${id}-voice.mp3`)
+execFileSync("ffmpeg", ["-y", "-v", "error", ...inputs, "-filter_complex", `${delays};${mix}`, "-map", "[out]", "-ar", "48000", "-b:a", "128k", targetVoice])
+if (existsSync(projectDir)) {
+  const publicLink = join(root, `public/${id}-voice.mp3`)
+  try { unlinkSync(publicLink) } catch {}
+  symlinkSync(`../../../projects/${id}/${id}-voice.mp3`, publicLink)
+}
+console.log(`Wrote ${targetVoice} (${probe(targetVoice).toFixed(2)}s)`)
+
 if (overruns) {
   console.error(`${overruns} clip(s) run longer than their slot. Shorten that text or move the next beat's start.`)
   process.exit(2)

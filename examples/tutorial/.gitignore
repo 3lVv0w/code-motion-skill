@@ -1,8 +1,25 @@
 node_modules/
 out/
+.env
+*.env
+.env.*
+.DS_Store
+.remotion/
+*.token.json
+.youtube-token.json
+client_secrets.json
+
+# Generated media assets (never commit rendered audio or video)
+*.wav
+*.mp3
+*.mp4
+*.webm
+*.mov
 public/*.wav
 public/*.mp3
-# Third-party style files: copy them from the Style Atlas prompt, do not commit them
-prompts/
-src/lib/
-src/style/
+public/*.mp4
+
+# Project symlinks in public (kept in root projects/)
+public/images/eternal-horizon
+public/images/mv
+public/thailand-flood-*.html

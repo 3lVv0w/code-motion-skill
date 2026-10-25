@@ -14,7 +14,7 @@ code is written. Changing a sentence is free at that stage and slow afterwards.
 | Topic + goal | what it is about, who watches it, what they should remember     | Drives the beats |
 | Duration     | 15–30 s promo, 60–90 s explainer, 120 s mini-documentary        | Sets how many words fit (table below) |
 | Format       | 16:9 1920×1080 (YouTube, decks) · 9:16 1080×1920 (Reels, Shorts, TikTok) · both | Layout is designed per format |
-| FPS          | 30 (default, smaller files) · 60 (smooth motion, double render time) | Set per video |
+| FPS          | 60 (default, smooth motion) · 30 (optional, smaller files)     | Set per video |
 | Language     | English, Thai, …                                               | Picks the voice and the fonts |
 | Voice style  | gender, accent, tone (documentary, news, warm, casual)          | Picks the voice; see table below |
 | Visual style | an AI Style Atlas style name, or palette + mood                | The look |
@@ -55,7 +55,7 @@ Narration must end before its scene does. At normal speed:
 - Audience and goal: [who watches it, what they should remember]
 - Duration: [e.g. 60] seconds
 - Format: [9:16 1080x1920 | 16:9 1920x1080 | both]
-- FPS: [30 | 60]
+- FPS: [60 | 30]
 - Language: [English | Thai | ...]
 - Voice: [style, gender, accent], e.g. [en-GB-RyanNeural]. Use ElevenLabs [model] if my key is set.
 - Visual style: [AI Style Atlas style name, or palette and mood]

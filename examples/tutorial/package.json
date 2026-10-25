@@ -6,7 +6,10 @@
     "render": "bun scripts/render.ts",
     "stills": "bun scripts/stills.ts",
     "voiceover": "bun scripts/voiceover.ts",
-    "setup-style": "bun scripts/setup-style.ts"
+    "setup-style": "bun scripts/setup-style.ts",
+    "upload:yt": "bun scripts/upload-youtube.ts",
+    "upload:ig": "bun scripts/upload-instagram.ts",
+    "schedule": "bun scripts/schedule-social.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.530",

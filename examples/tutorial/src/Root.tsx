@@ -5,6 +5,7 @@ import { VIDEOS } from "./videos"
 
 const renderScore = async (id: string) => {
   const video = VIDEOS[id]!
+  if (!video.score) return { pcm: "", sampleRate: SAMPLE_RATE }
   const r = await window.SOUND.renderOffline(video.score, video.duration, SAMPLE_RATE, {})
   const norm = r.peak > 0.98 ? 0.98 / r.peak : 1
   const pcm = new Int16Array(r.inter.length)
@@ -26,18 +27,25 @@ export const Root = () => (
           fps={video.fps ?? FPS}
           width={video.width ?? WIDTH}
           height={video.height ?? HEIGHT}
-          defaultProps={{ id, withAudio: true, voiceAudio: video.voice }}
+          defaultProps={{
+            id,
+            withAudio: Boolean(video.score),
+            voiceAudio: video.voice,
+            musicAudio: video.music,
+          }}
         />
-        <Composition
-          id={`${id}-audio`}
-          component={() => null}
-          durationInFrames={1}
-          fps={FPS}
-          width={WIDTH}
-          height={HEIGHT}
-          defaultProps={{ pcm: "", sampleRate: SAMPLE_RATE }}
-          calculateMetadata={async () => ({ props: await renderScore(id) })}
-        />
+        {video.score ? (
+          <Composition
+            id={`${id}-audio`}
+            component={() => null}
+            durationInFrames={1}
+            fps={FPS}
+            width={WIDTH}
+            height={HEIGHT}
+            defaultProps={{ pcm: "", sampleRate: SAMPLE_RATE }}
+            calculateMetadata={async () => ({ props: await renderScore(id) })}
+          />
+        ) : null}
       </div>
     ))}
   </>

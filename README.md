@@ -4,25 +4,79 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-black)](LICENSE)
 
-An agent skill for making product videos as code: canvas visuals and Web Audio sound, rendered to
-MP4 with [Remotion](https://www.remotion.dev), in a style picked from
+An agent skill for making product videos and animated explainers as code: canvas visuals and Web Audio sound, rendered to
+MP4 with [Remotion](https://www.remotion.dev), in styles picked from
 [Futurepedia AI Style Atlas](https://www.futurepedia.io/resources/ai-style-atlas/view).
 
-No video editor: every frame is a pure function of time, all sound is synthesized, and the video
-lives in git, so you can review it in a PR and re-render it any time.
+No video editor: every frame is a pure function of time, all sound is synthesized or synced, and the video
+lives in git as code, so you can review it in a PR and re-render it at any time.
 
 Works with any coding agent that can read files and run shell commands: Claude Code, Codex,
-Cursor, OpenCode and others. The skill is plain Markdown plus Bun commands.
+Cursor, OpenCode, and others. The skill is plain Markdown plus Bun commands.
 
-## How it works
+---
+
+## Repository & Folder Organization
+
+```text
+code-motion-skill/
+├── skills/
+│   └── code-motion/
+│       ├── SKILL.md                 # Agent skill instructions & workflow gates
+│       └── REFERENCE.md             # Technical reference (Remotion shell, Web Audio, voiceover APIs)
+├── prompts/
+│   ├── voxel-diorama.md             # Voxel Diorama (Dimensional) reference prompt & audio kit
+│   ├── voiceover-video-prompts.md   # Copy-paste prompts for narrated videos
+│   ├── suno-music-video-prompt.md   # AI music video prompt templates
+│   └── claude-desktop-prompt.md     # Instructions for Claude Desktop & chat prompts
+├── docs/
+│   ├── music-video-guide.md         # Guide for code-motion music videos
+│   └── music-video-guide.th.md      # Thai edition
+└── examples/tutorial/               # Full Remotion video project
+    ├── package.json
+    ├── scripts/
+    │   ├── render.ts                # bun run render <id> (--audio for WAV only)
+    │   ├── stills.ts                # bun run stills <id> <t1> <t2>...
+    │   └── voiceover.ts             # bun run voiceover <id> (Edge TTS / ElevenLabs)
+    ├── src/
+    │   ├── lib/                     # Core math, noise & Web Audio kit (harness.js, sound.js)
+    │   ├── style/                   # Style engines (voxel.js, manga.js, blueprint.js)
+    │   ├── videos/                  # Canonical repo examples (tutorial, launch)
+    │   ├── Root.tsx
+    │   ├── VideoCanvas.tsx
+    │   └── config.ts
+    └── public/                      # Self-hosted OFL fonts, fonts.css & logos
+```
+
+
+### Git Policy: Core Code vs. Generated Assets
+
+To keep the repository clean, reproducible, and lightweight:
+- **Included in Git (The Core):**
+  - All skill definitions (`skills/code-motion/`)
+  - Prompts, style guides, and documentation (`prompts/`, `docs/`)
+  - Visual and audio source code (`src/videos/`, `src/lib/`, `src/style/`)
+  - Automation scripts (`scripts/render.ts`, `scripts/voiceover.ts`, `scripts/stills.ts`)
+  - Standalone HTML players, storyboards, and web font definitions.
+- **Excluded from Git (Generated Assets via `.gitignore`):**
+  - Rendered MP4 videos (`out/*.mp4`, `out/`)
+  - Rendered test stills (`out/*.png`)
+  - Rendered synthesized audio (`public/*.wav`, `*.wav`)
+  - Synthesized voiceover and music audio (`public/*.mp3`, `*.mp3`)
+  - Environment files with API keys (`.env`, `*.env`)
+  - Remotion build caches (`.remotion/`)
+
+---
+
+## How It Works
 
 ### Workflow
 
 ```mermaid
 flowchart TD
   brief["Brief<br/>topic, length, brand, voice"] --> stylePrompt["Style prompt<br/>from AI Style Atlas"]
-  stylePrompt --> facts["Facts<br/>from your codebase"]
-  facts --> board["Storyboard<br/>one panel per beat<br/>+ narration per beat"]
+  stylePrompt --> facts["Facts<br/>from your codebase / research"]
+  facts --> board["Storyboard<br/>HTML canvas panels per beat<br/>+ narration per beat"]
   board --> ok{"You approve?"}
   ok -- "changes" --> board
   ok -- "yes" --> build["Agent writes<br/>visuals.js + score.js<br/>(+ narration.json)"]
@@ -32,57 +86,79 @@ flowchart TD
   render --> pr["Commit + PR<br/>attach the MP4"]
 ```
 
-### Render pipeline
+### Render Pipeline
 
 ```mermaid
 flowchart LR
-  subgraph code["In git"]
+  subgraph code["In git (Core)"]
     visuals["visuals.js<br/>draw(ctx, W, H, t)"]
-    score["score.js<br/>sound events"]
-    assets["fonts + logo"]
-    narration["narration.json<br/>optional, text per beat"]
+    score["score.js<br/>sound synthesis events"]
+    style["voxel.js / manga.js<br/>projection & shading"]
+    narration["narration.json<br/>voiceover text per beat"]
   end
-  subgraph browser["Headless Chrome"]
+  subgraph browser["Headless Chrome / Web Audio"]
     canvas["Canvas<br/>frame at t = frame / fps"]
     webaudio["Web Audio<br/>offline render"]
   end
   visuals --> canvas
-  assets --> canvas
+  style --> canvas
   score --> webaudio
-  webaudio --> wav[("public/&lt;id&gt;.wav")]
-  narration --> tts["Edge TTS or ElevenLabs<br/>one clip per beat"]
-  tts --> voice[("public/&lt;id&gt;-voice.mp3")]
-  canvas --> remotion["Remotion"]
+  webaudio --> wav[("public/&lt;id&gt;.wav (Generated)")]
+  narration --> tts["ElevenLabs or Edge TTS<br/>exact beat timing"]
+  tts --> voice[("public/&lt;id&gt;-voice.mp3 (Generated)")]
+  canvas --> remotion["Remotion Bundler"]
   wav --> remotion
   voice --> remotion
-  remotion --> mp4[("out/&lt;id&gt;.mp4")]
+  remotion --> mp4[("out/&lt;id&gt;.mp4 (Generated)")]
 ```
 
-Same code in, same video out: lose the MP4 and run `bun run render <id>` again.
+Same code in, same video out: re-render any time with `bun run render <id>`.
 
-### Voiceover (optional)
+---
 
-Narration is written per beat in `narration.json`, so each line starts with its scene and can't
-drift. `bun run voiceover <id>` uses free Edge TTS neural voices, or ElevenLabs when
-`ELEVENLABS_API_KEY` is set, and refuses to finish if a line runs into the next scene. Each
-video can also set its own frame rate (30 by default, 60 for smoother motion). Ready-made prompts
-are in [prompts/voiceover-video-prompts.md](prompts/voiceover-video-prompts.md).
+## Canonical Example: Code Motion Tutorial Video
 
-## Install
+A 34-second tutorial video about the `code-motion` skill, built by following the skill end-to-end in the Manga Page visual style. It illustrates the complete anatomy of a real project: `visuals.js`, `score.js`, vertical 9:16 cut, self-hosted OFL fonts, render scripts, and optional voiceover.
 
-**With the [skills CLI](https://github.com/vercel-labs/skills)** (Node.js 22.20+), from your
-project:
+- **ID:** `tutorial` (16:9 Landscape) · `tutorial-vertical` (9:16 Portrait)
+- **Resolution:** 1280×720 or 1080×1920, 60 fps
+- **Duration:** 34.0 seconds
+- **Synthesized Sound:** Web Audio percussive hits, panel sweeps, and chime cues.
+- **Voiceover:** Optional Thai or English voiceover via `narration.json`.
+
+### Commands to Run:
+
+```bash
+cd examples/tutorial
+
+# 1. Preview in Remotion Studio
+bun run studio                  # Opens at http://localhost:3000
+
+# 2. Render Synthesized Audio
+bun run render tutorial --audio
+
+# 3. Render Final MP4 Video
+bun run render tutorial         # Output: out/tutorial.mp4
+bun run render tutorial-vertical # Output: out/tutorial-vertical.mp4
+
+# 4. Extract Test Stills
+bun run stills tutorial 0 5 12 20 28 34
+```
+
+
+---
+
+## Install the Skill
+
+**With the [skills CLI](https://github.com/vercel-labs/skills)** (Node.js 22.20+), from your project:
 
 ```bash
 npx skills add savepong/code-motion-skill
 ```
 
-It asks which coding agents to install to (Claude Code, Codex, Cursor and many more). Add `-g` to
-install it for all your projects.
+Add `-g` to install it globally for all your projects.
 
-**By hand:** copy the skill folder into your project. You only need `skills/code-motion/`.
-
-**Claude Code**
+**Claude Code:**
 
 ```bash
 git clone --depth 1 https://github.com/savepong/code-motion-skill /tmp/code-motion-skill
@@ -90,64 +166,30 @@ mkdir -p .claude/skills
 cp -R /tmp/code-motion-skill/skills/code-motion .claude/skills/
 ```
 
-Then use `/code-motion` or ask for a video. To have it in every project, copy it to
-`~/.claude/skills/` instead.
+Then invoke with `/code-motion`.
 
-**Codex, Cursor, OpenCode and others:** copy it to `.agents/skills/code-motion/` and add a line to
-your `AGENTS.md`:
+**Codex, Cursor, OpenCode and others:** Copy the skill to `.agents/skills/code-motion/` and add to your `AGENTS.md`:
 
 ```md
-To make or re-render a product video, read and follow `.agents/skills/code-motion/SKILL.md`.
+To make or re-render a product video or animated explainer, read and follow `.agents/skills/code-motion/SKILL.md`.
 ```
 
-## Use
-
-```text
-/code-motion 25-second intro trailer for our app, in Thai, using our real logo
-```
-
-Install the skill in your own project, then follow what the agent asks. That is the whole process:
-
-1. Pick a style on the Style Atlas and save its prompt to `prompts/<style>.md` when asked.
-2. Approve the storyboard (and the narration, if you asked for a voiceover).
-3. Watch it in Remotion Studio (`bun run studio`, http://localhost:3000) and ask for changes.
-4. The agent runs `bun run render <id>`. The MP4 is in `out/<id>.mp4`.
-
-## What's in this repo
-
-| Path                       | What                                                                      |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `skills/code-motion/`      | The skill: `SKILL.md` (workflows, checklist) and `REFERENCE.md` (the Remotion shell, voiceover script) |
-| `examples/tutorial/`       | The 34-second Thai tutorial video about this skill, made with this skill  |
-| `prompts/claude-desktop-prompt.md` | Instructions to use the same workflow in Claude Desktop / Claude Projects |
-| `prompts/voiceover-video-prompts.md` | Copy-paste prompts for narrated videos (storyboard, voice, duration, format, FPS) and which models fit |
-
-### Example: the tutorial video
-
-A Manga Page style tutorial, in 16:9 and 9:16, built by following the skill end to end. It shows
-the whole shape of a real project: `visuals.js`, `score.js`, a vertical cut, self-hosted fonts,
-the render scripts and the voiceover script. See [examples/tutorial/README.md](examples/tutorial/README.md) to render it.
+---
 
 ## Requirements
 
-Bun, and internet on the first render (Remotion downloads a headless Chrome). Tested with Remotion
-4.0.530 and React 19.2.7.
+- **Runtime:** [Bun](https://bun.sh/)
+- **Video Renderer:** Remotion 4.0.530 (downloads headless Chrome on first run)
+- **Media Tools:** `ffmpeg` and `ffprobe` on your system `PATH`
+- **Voiceover:**
+  - Free Edge TTS: Works out-of-the-box (no API key required).
+  - ElevenLabs: Requires `ELEVENLABS_API_KEY` in `.env` or system environment.
 
-For voiceover: `ffmpeg` and `ffprobe` on the PATH, and internet while generating it. ElevenLabs
-needs `ELEVENLABS_API_KEY`; Edge TTS needs no key.
+---
 
 ## Contributing
 
-Issues and pull requests are welcome: bugs you hit while making a video, fixes to the shell,
-new example videos, or better guidance in `SKILL.md`. If you add an example, leave out the style
-prompt and the code that comes from it (see below) and explain how to get it.
-
-## Third-party material
-
-Styles come from [Futurepedia AI Style Atlas](https://www.futurepedia.io/resources/ai-style-atlas/view).
-Their prompts, reference code, `H` helper library and `SOUND` kit belong to Futurepedia and are not
-in this repo. Fonts in the example are under the SIL Open Font License; their licences sit next to
-the font files.
+Pull requests and issues are welcome: bug fixes, new style projection engines, or improvements to `SKILL.md`. Ensure that generated media files (`.mp4`, `.wav`, `.mp3`) and `.env` files are never included in PRs.
 
 ## License
 
